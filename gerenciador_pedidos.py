@@ -232,58 +232,106 @@ def calcular_valor_total_pedido(id_pedido_alvo, todos_itens):
     return total
 
 def adicionar_item_a_pedido(id_pedido_alvo, todos_itens, produtos_disponiveis):
-    """Adiciona um novo item ao pedido especificado."""
+    """Permite listar, adicionar, remover e EDITAR quantidade e tipo (UN/CX)."""
     while True:
-        print("\n--- Adicionar Item ---")
+        itens_atuais = [item for item in todos_itens if item['ID do Pedido'] == id_pedido_alvo]
         
-        for codigo, produto in produtos_disponiveis.items():
-            print(
-                f"  [{codigo}] {produto['Nome do Produto']} | UN: R${float(produto['Valor Unidade (R$)']):.2f} "
-                f"| CX ({produto['Qtd por Caixa']} un): R${float(produto['Valor Caixa (R$)']):.2f}"
-            )
-
-        codigo_produto = input("Digite o Código do Produto (Ex: P001, ou N para CANCELAR): ").upper()
-        if codigo_produto == 'N':
-            return
-
-        produto_selecionado = produtos_disponiveis.get(codigo_produto)
+        print("\n" + "─"*60)
+        print(f"📦 ITENS NO PEDIDO #{id_pedido_alvo}")
+        print("─"*60)
         
-        if not produto_selecionado:
-            print(f"\n❌ Código de produto '{codigo_produto}' inválido. Tente novamente.")
-            continue
-
-        tipo_compra = input("Tipo de Compra (U para Unidade, C para Caixa): ").upper()
-        if tipo_compra not in ['U', 'C']:
-            print("\n❌ Tipo de compra inválida. Use 'U' ou 'C'. Tente novamente.")
-            continue
-            
-        try:
-            quantidade_compra = int(input(f"Quantidade de {'Unidades' if tipo_compra == 'U' else 'Caixas'} a comprar: "))
-        except ValueError:
-            print("\n❌ Quantidade inválida. Digite um número inteiro.")
-            continue
-            
-        if tipo_compra == 'U':
-            valor_unitario = float(produto_selecionado['Valor Unidade (R$)'])
-            valor_do_item = quantidade_compra * valor_unitario
+        if not itens_atuais:
+            print("   (Pedido Vazio)")
         else:
-            valor_caixa = float(produto_selecionado['Valor Caixa (R$)'])
-            valor_do_item = quantidade_compra * valor_caixa
+            for i, item in enumerate(itens_atuais, 1):
+                print(f"{i}. {item['Produto']:<30} | Qtd: {item['Quantidade']:<4} | Total: R$ {item['Valor Item (R$)']}")
+        
+        print("-" * 60)
+        print("A. Adicionar Novo Produto")
+        print("E. EDITAR Item (Alterar Qtd ou Tipo UN/CX)")
+        print("R. Remover Item (Excluir)")
+        print("F. Finalizar e Recalcular Total")
+        print("-" * 60)
+        
+        acao = input("Escolha uma ação: ").upper()
 
-        novo_item = {
-            'ID do Item': str(gerar_novo_id_item(todos_itens)),
-            'ID do Pedido': str(id_pedido_alvo),
-            'Produto': produto_selecionado['Nome do Produto'],
-            'Quantidade': str(quantidade_compra), 
-            'Valor Item (R$)': f"{valor_do_item:.2f}"
-        }
-        
-        todos_itens.append(novo_item)
-        print(f"✅ Item '{produto_selecionado['Nome do Produto']}' adicionado com sucesso.")
-        
-        adicionar_mais = input("Adicionar outro item? (S/N): ").upper()
-        if adicionar_mais != 'S':
+        if acao == 'F':
             break
+        
+        elif acao == 'E':
+            if not itens_atuais:
+                print("❌ Não há itens para editar.")
+                continue
+            try:
+                idx = int(input("Digite o número da linha para EDITAR: ")) - 1
+                if 0 <= idx < len(itens_atuais):
+                    item_editando = itens_atuais[idx]
+                    
+                    # 1. Identifica qual é o produto original no produtos.csv
+                    # Precisamos limpar o "(UN)" ou "(CX)" do nome para buscar no CSV
+                    nome_limpo = item_editando['Produto'].replace(" (UN)", "").replace(" (CX)", "").strip()
+                    
+                    # Busca o produto correspondente no dicionário de produtos
+                    prod_info = next((info for info in produtos_disponiveis.values() if info['Nome do Produto'] == nome_limpo), None)
+                    
+                    if not prod_info:
+                        print("❌ Produto base não encontrado no estoque para recalcular.")
+                        continue
+
+                    print(f"\nEditando: {nome_limpo}")
+                    print("1. Mudar para UNIDADE (R$ " + prod_info['Valor Unidade (R$)'] + ")")
+                    print("2. Mudar para CAIXA (R$ " + prod_info['Valor Caixa (R$)'] + ")")
+                    tipo_venda = input("Escolha o novo tipo: ")
+                    
+                    nova_qtd = int(input(f"Nova quantidade: "))
+                    
+                    if nova_qtd <= 0:
+                        print("❌ Quantidade inválida.")
+                        continue
+
+                    # 2. Aplica o novo preço e nome
+                    if tipo_venda == '1':
+                        preco = float(prod_info['Valor Unidade (R$)'])
+                        novo_nome = f"{nome_limpo} (UN)"
+                    else:
+                        preco = float(prod_info['Valor Caixa (R$)'])
+                        novo_nome = f"{nome_limpo} (CX)"
+
+                    # 3. Atualiza o item na lista principal
+                    item_editando['Produto'] = novo_nome
+                    item_editando['Quantidade'] = str(nova_qtd)
+                    item_editando['Valor Item (R$)'] = f"{(nova_qtd * preco):.2f}"
+                    
+                    print(f"✅ Item atualizado: {novo_nome} x {nova_qtd}!")
+                else:
+                    print("❌ Linha inválida.")
+            except ValueError:
+                print("❌ Erro: Entrada inválida.")
+
+        elif acao == 'A':
+            # --- Lógica de Adicionar (Mantida igual para funcionar com seu CSV) ---
+            print("\nPRODUTOS DISPONÍVEIS:")
+            for cod, info in produtos_disponiveis.items():
+                print(f"{cod:<5} | {info['Nome do Produto']:<30} | UN: {info['Valor Unidade (R$)']:<8} | CX: {info['Valor Caixa (R$)']}")
+            
+            codigo = input("\nCódigo: ").strip().zfill(2)
+            if codigo in produtos_disponiveis:
+                p = produtos_disponiveis[codigo]
+                t = input("1. Unidade | 2. Caixa: ")
+                q = int(input("Quantidade: "))
+                pr = float(p['Valor Unidade (R$)']) if t == '1' else float(p['Valor Caixa (R$)'])
+                nm = f"{p['Nome do Produto']} ({'UN' if t == '1' else 'CX'})"
+                todos_itens.append({'ID do Pedido': id_pedido_alvo, 'Produto': nm, 'Quantidade': str(q), 'Valor Item (R$)': f"{(q*pr):.2f}"})
+            else:
+                print("❌ Código inválido.")
+
+        elif acao == 'R':
+            try:
+                idx = int(input("Linha para remover: ")) - 1
+                todos_itens.remove(itens_atuais[idx])
+                print("🗑️ Item removido.")
+            except:
+                print("❌ Erro ao remover.")
 
 def remover_item_de_pedido(id_pedido_alvo, todos_itens):
     """Remove um item específico do pedido."""
@@ -484,96 +532,71 @@ def adicionar_pedido(cabecalhos, todos_itens, nome_sugerido=None):
     except Exception as e:
         print(f"\n❌ Ocorreu um erro inesperado: {e}")
 
-
 def editar_pedido(cabecalhos, todos_itens):
-    """Permite a edição completa dos itens, status e pagamentos de um pedido existente."""
-    id_alvo = input("\nDigite o ID do pedido para EDITAR: ")
-    cabecalho_alvo = next((c for c in cabecalhos if c['ID do Pedido'] == id_alvo), None)
-    produtos_disponiveis = carregar_produtos()
-
-    if not cabecalho_alvo:
-        print(f"\n❌ Pedido com ID {id_alvo} não encontrado.")
+    """Edita um pedido existente com recálculo automático de valores para evitar fraudes."""
+    id_pedido = input("\nDigite o ID do pedido que deseja editar: ").strip()
+    
+    # Busca o pedido no cabeçalho
+    pedido = next((p for p in cabecalhos if p['ID do Pedido'] == id_pedido), None)
+    
+    if not pedido:
+        print(f"❌ Pedido ID {id_pedido} não encontrado.")
         return
-
+    alterou_itens = False
     while True:
-        valor_total_atual = calcular_valor_total_pedido(id_alvo, todos_itens)
-        cabecalho_alvo['Valor Total (R$)'] = f"{valor_total_atual:.2f}"
+        print(f"\n" + "═"*50)
+        print(f"      EDITANDO PEDIDO #{id_pedido} - {pedido['Nome do Cliente']}")
+        print("═"*50)
+        print("1. Adicionar/Remover/Alterar Itens (Produtos)")
+        print("2. Registrar Pagamento (Dar Baixa)")
+        print("3. Alterar Status do Pedido (Entrega/Retirada)")
+        print("4. SALVAR E SAIR")
+        print("5. Cancelar Edição")
         
-        print("\n" + "="*40)
-        print(f"    EDITANDO PEDIDO ID: {id_alvo}")
-        print("="*40)
-        print(f"Cliente: {cabecalho_alvo['Nome do Cliente']}")
-        print(f"Valor Total: R$ {cabecalho_alvo['Valor Total (R$)']}")
-        print(f"Valor Pago: R$ {cabecalho_alvo.get('Valor Pago (R$)', '0.00')}")
-        print(f"Status Pagamento: {cabecalho_alvo['Status do Pagamento']} | Forma: {cabecalho_alvo['Forma de Pagamento']}")
-        print(f"Status Pedido: {cabecalho_alvo['Status do Pedido']} | Entrega: {cabecalho_alvo['Data/Hora Entrega']}")
-        print("-" * 40)
-        print("1. Editar Itens do Pedido (Adicionar/Remover/Alterar Qtd)") 
-        print("2. Alterar Pagamento/Registrar Parcial")
-        print("3. Alterar Status/Agendar Entrega")
-        print("4. FINALIZAR EDIÇÃO e Salvar")
-        print("-" * 40)
+        opcao = input("\nEscolha uma opção: ")
 
-        escolha = input("Escolha uma opção de edição: ")
+        if opcao == '1':
+            # Chama sua função de manipulação de itens
+            adicionar_item_a_pedido(id_pedido, todos_itens, carregar_produtos())
+            alterou_itens = True
+            print("📝 Alteração de itens registrada.")
 
-        if escolha == '1':
-            menu_edicao_itens(id_alvo, todos_itens, produtos_disponiveis)
+        elif opcao == '2':
+            # Chama sua função de pagamento parcial/total
+            registrar_pagamento_parcial(pedido)
+            # Nota: registrar_pagamento_parcial já atualiza Status e Valor Pago
 
-        elif escolha == '2':
-            print("\n--- Alterar Dados de Pagamento ---")
-            
-            nova_forma = selecionar_opcao("Nova Forma de Pagamento", OPCOES_FORMA_PAGAMENTO)
-            novo_status = selecionar_opcao("Novo Status do Pagamento", OPCOES_STATUS_PAGAMENTO)
-            
-            cabecalho_alvo['Forma de Pagamento'] = nova_forma
+        elif opcao == '3':
+            novo_status = selecionar_opcao("Status do Pedido", OPCOES_STATUS_PEDIDO)
+            pedido['Status do Pedido'] = novo_status
+            if novo_status == 'Entregue' and not pedido['Data/Hora Entrega']:
+                pedido['Data/Hora Entrega'] = datetime.now().strftime("%d-%m-%Y %H:%M")
 
-            if novo_status == 'Parcial':
-                registrar_pagamento_parcial(cabecalho_alvo)
-                novo_status = cabecalho_alvo['Status do Pagamento'] # Pode ter mudado para 'Pago'
+        elif opcao == '4':
+            # --- TRAVA DE SEGURANÇA: RECALCULO AUTOMÁTICO ---
+            if alterou_itens:
+                print("\n🔄 Recalculando valor total com base nos itens atualizados...")
+                novo_total = calcular_valor_total_pedido(id_pedido, todos_itens)
                 
-                # 🎯 NOVO CÓDIGO AQUI: Se após o registro parcial, o status AINDA for Parcial, solicita novo prazo
-                if novo_status == 'Parcial':
-                    print("\n--- REGISTRO DE DATA ESPERADA PARA PAGAMENTO RESTANTE ---")
-                    data_pedido_base = cabecalho_alvo['Data do Pedido']
-                    cabecalho_alvo['Data Vencimento Prazo'] = solicitar_data_limite_pagamento(data_pedido_base, novo_status)
-                else:
-                    cabecalho_alvo['Data Vencimento Prazo'] = "" # Limpa se virou Pago
-
-            elif novo_status == 'Pago':
-                cabecalho_alvo['Valor Pago (R$)'] = cabecalho_alvo['Valor Total (R$)']
-                cabecalho_alvo['Data do Pagamento'] = datetime.now().strftime("%d-%m-%Y %H:%M") 
-                cabecalho_alvo['Data Vencimento Prazo'] = "" # Limpa o prazo
-            
-            elif novo_status == 'Pendente':
-                # Só zera o valor pago se o status anterior não for Parcial
-                if cabecalho_alvo['Status do Pagamento'] != 'Pendente': 
-                    cabecalho_alvo['Valor Pago (R$)'] = '0.00'
-                cabecalho_alvo['Data do Pagamento'] = ""
+                # Atualiza o campo de valor total sem permitir edição manual
+                pedido['Valor Total (R$)'] = f"{novo_total:.2f}"
                 
-                print("\n--- REGISTRO DE DATA ESPERADA PARA PAGAMENTO TOTAL ---")
-                data_pedido_base = cabecalho_alvo['Data do Pedido']
-                cabecalho_alvo['Data Vencimento Prazo'] = solicitar_data_limite_pagamento(data_pedido_base, novo_status)
+                # Checagem de integridade: Se o total subiu e o status era 'Pago', vira 'Parcial'
+                valor_pago = float(pedido.get('Valor Pago (R$)', 0))
+                if valor_pago < novo_total:
+                    if pedido['Status do Pagamento'] == 'Pago':
+                        pedido['Status do Pagamento'] = 'Parcial'
+                        print("⚠️ Alerta: O valor total aumentou. Status alterado para 'Parcial'.")
+                elif valor_pago >= novo_total and novo_total > 0:
+                    pedido['Status do Pagamento'] = 'Pago'
 
-            cabecalho_alvo['Status do Pagamento'] = novo_status
-            
-            print(f"\n✅ Pagamento atualizado para Status: {novo_status} e Forma: {nova_forma}")
-        
-        elif escolha == '3':
-            novo_status_pedido = selecionar_opcao("Novo Status do Pedido", OPCOES_STATUS_PEDIDO)
-            
-            if novo_status_pedido == 'Pendente':
-                cabecalho_alvo['Data/Hora Entrega'] = solicitar_data_hora_entrega()
-                print(f"✅ Entrega agendada para: {cabecalho_alvo['Data/Hora Entrega']}")
-            elif novo_status_pedido == 'Entregue':
-                cabecalho_alvo['Data/Hora Entrega'] = "ENTREGUE"
-            
-            cabecalho_alvo['Status do Pedido'] = novo_status_pedido
-            print(f"\n✅ Status do Pedido atualizado para: {novo_status_pedido}")
-
-        elif escolha == '4':
             salvar_cabecalhos(cabecalhos)
             salvar_itens(todos_itens)
-            print(f"\n✅ Pedido ID {id_alvo} salvo e alterações finalizadas.")
+            print("\n✅ Alterações salvas com sucesso!")
+            break
+
+        elif opcao == '5':
+            print("\nEdição descartada.")
             break
             
         else:

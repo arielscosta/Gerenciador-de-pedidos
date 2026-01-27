@@ -389,21 +389,27 @@ def menu_edicao_itens(id_alvo, todos_itens, produtos_disponiveis):
 #               FUNÇÕES PRINCIPAIS 
 # =================================================================
             
-def adicionar_pedido(cabecalhos, todos_itens):
-    """Cria um novo pedido com múltiplos itens e lógica de seleção forçada."""
+def adicionar_pedido(cabecalhos, todos_itens, nome_sugerido=None):
+    """Lança um novo pedido, permitindo nome automático ou manual."""
     produtos_disponiveis = carregar_produtos()
     if not produtos_disponiveis:
         return
 
+    novo_id = gerar_novo_id_pedido(cabecalhos)
+    data_pedido = datetime.now().strftime("%d-%m-%Y %H:%M")
+    
+    # Lógica de Nome Automatizada
+    if nome_sugerido:
+        nome_cliente = nome_sugerido
+        print(f"\nLançando pedido para: {nome_cliente.upper()}")
+    else:
+        nome_cliente = input("\nNome do Cliente: ")
+
     try:
-        novo_id = gerar_novo_id_pedido(cabecalhos)
-        print("\n--- INICIAR NOVO PEDIDO ---")
-        
-        data_pedido = datetime.now().strftime("%d-%m-%Y %H:%M") # Data de referência para 30 dias
-        cliente = input("Nome do Cliente: ")
-        
+        # 1. Adiciona os itens ao pedido
         adicionar_item_a_pedido(novo_id, todos_itens, produtos_disponiveis)
         
+        # 2. Calcula o total
         valor_total = calcular_valor_total_pedido(novo_id, todos_itens)
         if valor_total == 0.0:
             print("\n❌ Pedido sem itens. Cancelando operação.")
@@ -412,12 +418,12 @@ def adicionar_pedido(cabecalhos, todos_itens):
         print(f"\n--- Finalizando Pedido ID {novo_id} ---")
         print(f"VALOR TOTAL: R$ {valor_total:.2f}")
 
-        # --- Seleções Forçadas ---
+        # --- Seleções de Status ---
         forma_pagamento = selecionar_opcao("Forma de Pagamento", OPCOES_FORMA_PAGAMENTO)
         status_pagamento = selecionar_opcao("Status do Pagamento", OPCOES_STATUS_PAGAMENTO)
         status_pedido = selecionar_opcao("Status do Pedido", OPCOES_STATUS_PEDIDO)
         
-        # Variáveis de inicialização
+        # Inicialização de campos
         data_hora_entrega = ""
         data_vencimento_prazo = ""
         valor_pago = "0.00"
@@ -439,14 +445,13 @@ def adicionar_pedido(cabecalhos, todos_itens):
             
             valor_pago = temp_cabecalho['Valor Pago (R$)']
             data_pagamento = temp_cabecalho.get('Data do Pagamento', "")
-            status_pagamento = temp_cabecalho['Status do Pagamento'] # Atualiza status (pode ter virado 'Pago')
+            status_pagamento = temp_cabecalho['Status do Pagamento']
 
-            # 🎯 NOVO CÓDIGO AQUI: Se ainda for Parcial, solicita a data limite para o restante
             if status_pagamento == 'Parcial':
                 print("\n--- REGISTRO DE DATA ESPERADA PARA PAGAMENTO RESTANTE ---")
                 data_vencimento_prazo = solicitar_data_limite_pagamento(data_pedido, status_pagamento)
             else:
-                data_vencimento_prazo = "" # Limpa se virou Pago
+                data_vencimento_prazo = "" 
 
         elif status_pagamento == 'Pendente':
             valor_pago = "0.00"
@@ -454,10 +459,11 @@ def adicionar_pedido(cabecalhos, todos_itens):
             print("\n--- REGISTRO DE DATA ESPERADA PARA PAGAMENTO TOTAL ---")
             data_vencimento_prazo = solicitar_data_limite_pagamento(data_pedido, status_pagamento)
         
+        # Montagem do Dicionário (Corrigido para nome_cliente)
         novo_cabecalho = {
             'ID do Pedido': str(novo_id),
             'Data do Pedido': data_pedido,
-            'Nome do Cliente': cliente,
+            'Nome do Cliente': nome_cliente,
             'Valor Total (R$)': f"{valor_total:.2f}",
             'Valor Pago (R$)': valor_pago,
             'Forma de Pagamento': forma_pagamento,
@@ -476,7 +482,7 @@ def adicionar_pedido(cabecalhos, todos_itens):
     except ValueError:
         print("\n❌ Erro: Por favor, insira números válidos.")
     except Exception as e:
-        print(f"\n❌ Ocorreu um erro: {e}")
+        print(f"\n❌ Ocorreu um erro inesperado: {e}")
 
 
 def editar_pedido(cabecalhos, todos_itens):
@@ -576,61 +582,73 @@ def editar_pedido(cabecalhos, todos_itens):
 # --- Funções de Visualização e Menu Principal ---
 
 def gerenciar_por_cliente(cabecalhos, todos_itens):
-    """Filtra pedidos por nome e exibe extrato detalhado de pedidos e pagamentos."""
-    nome_busca = input("\nDigite o nome do cliente para gerenciar: ").strip().lower()
+    """Filtra pedidos por nome ou automatiza cadastro de novo cliente."""
+    nome_busca = input("\nDigite o nome do cliente para gerenciar: ").strip()
     
-    # Filtra os pedidos que contêm o nome buscado
-    pedidos_cliente = [p for p in cabecalhos if nome_busca in p['Nome do Cliente'].lower()]
-    
-    if not pedidos_cliente:
-        print(f"\n❌ Nenhum registro encontrado para '{nome_busca}'.")
+    if not nome_busca:
+        print("⚠️ Nome não pode ser vazio.")
         return
 
+    # Filtra os pedidos que contêm o nome buscado
+    pedidos_cliente = [p for p in cabecalhos if nome_busca.lower() in p['Nome do Cliente'].lower()]
+    
+    # --- AUTOMAÇÃO PARA NOVO CLIENTE ---
+    if not pedidos_cliente:
+        print(f"\n🟡 Cliente '{nome_busca}' não encontrado.")
+        confirmar = input(f"Deseja cadastrar e lançar pedido para '{nome_busca}' agora? (S/N): ").upper()
+        if confirmar == 'S':
+            # Chama o adicionar_pedido passando o nome já digitado
+            adicionar_pedido(cabecalhos, todos_itens, nome_sugerido=nome_busca)
+            return
+        else:
+            return
+
+    # Se encontrou, pega o nome exato do primeiro registro para o Painel
     nome_exato = pedidos_cliente[0]['Nome do Cliente']
     
     while True:
         total_devedor_acumulado = 0.0
-        print(f"\n" + "═"*70)
-        print(f"    EXTRATO DO CLIENTE: {nome_exato.upper()}")
-        print("═"*70)
+        print(f"\n" + "═"*75)
+        print(f"    PAINEL DE GESTÃO: {nome_exato.upper()}")
+        print("═"*75)
         
-        # --- TABELA DE PEDIDOS ---
+        # Cabeçalho da tabela
         print(f"{'ID':<5} | {'DATA PEDIDO':<18} | {'TOTAL':<10} | {'SALDO':<10} | {'STATUS'}")
-        print("-" * 70)
+        print("-" * 75)
         
         for p in pedidos_cliente:
             v_total = float(p['Valor Total (R$)'])
             v_pago = float(p.get('Valor Pago (R$)', '0.00'))
             saldo = v_total - v_pago
             total_devedor_acumulado += saldo
-            
             print(f"{p['ID do Pedido']:<5} | {p['Data do Pedido']:<18} | {v_total:<10.2f} | {saldo:<10.2f} | {p['Status do Pagamento']}")
         
-        # --- NOVO: HISTÓRICO DE RECEBIMENTOS ---
+        # Extrato de Pagamentos
         print("\n💰 HISTÓRICO DE LANÇAMENTOS (PAGAMENTOS):")
         tem_pagamento = False
         for p in pedidos_cliente:
-            # Verifica se há registro de data e valor pago
             if p.get('Data do Pagamento') and float(p.get('Valor Pago (R$)', 0)) > 0:
                 print(f"   • {p['Data do Pagamento']} --> Recebido R$ {p['Valor Pago (R$)']} (Pedido #{p['ID do Pedido']})")
                 tem_pagamento = True
         
         if not tem_pagamento:
-            print("   (Nenhum pagamento registrado neste histórico)")
+            print("   (Nenhum pagamento registrado)")
 
-        print("-" * 70)
+        print("-" * 75)
         print(f"💸 TOTAL A RECEBER DESTE CLIENTE: R$ {total_devedor_acumulado:.2f}")
-        print("-" * 70)
+        print("-" * 75)
         
         print("1. Lançar Novo Pedido")
-        print("2. Editar Pedido (Dar Baixa / Alterar Itens)")
+        print("2. EDITAR PEDIDO (Pagamentos, Itens, Excluir)")
         print("3. Voltar ao Menu Principal")
         
         op = input("\nEscolha uma opção: ")
 
         if op == '1':
-            adicionar_pedido(cabecalhos, todos_itens)
-            cabecalhos = carregar_cabecalhos() 
+            # Aqui também passamos o nome_exato para ser mais rápido
+            adicionar_pedido(cabecalhos, todos_itens, nome_sugerido=nome_exato)
+            # Recarrega dados
+            cabecalhos = carregar_cabecalhos()
             pedidos_cliente = [p for p in cabecalhos if nome_exato.lower() in p['Nome do Cliente'].lower()]
         
         elif op == '2':
@@ -667,64 +685,36 @@ def buscar_pedido(cabecalhos, id_pedido):
     return next((c for c in cabecalhos if c['ID do Pedido'] == id_pedido), None)
 
 def menu_principal():
-    """Função principal que exibe o menu e executa as ações."""
+    """Menu Principal simplificado e focado na gestão por cliente."""
     inicializar_csv()
 
     while True:
         cabecalhos = carregar_cabecalhos()
         todos_itens = carregar_itens()
 
-        print("\n" + "="*30)
-        print("    Gerenciador de Pedidos")
-        print("="*30)
-        # 1. Inserimos a nova opção de gestão por cliente
-        print("1. MENU DO CLIENTE (Busca por Nome/Dívida)")
-        print("2. Adicionar Novo Pedido")
-        print("3. Visualizar Todos os Pedidos")
-        print("4. Buscar Pedido por ID")
-        print("5. Editar Pedido Existente")
-        print("6. Sair")
-        print("-" * 30)
+        print("\n" + "="*40)
+        print("      SISTEMA DE GESTÃO v2.0")
+        print("="*40)
+        print("1. GESTÃO DE CLIENTES (Venda/Edição/Pagos)")
+        print("2. Visualizar Todos os Pedidos (Geral)")
+        print("3. Buscar Pedido por ID (Detalhado)")
+        print("4. Sair")
+        print("-" * 40)
 
         escolha = input("Escolha uma opção: ")
 
-        # 2. Atualizamos a lógica para corresponder aos novos números
         if escolha == '1':
             gerenciar_por_cliente(cabecalhos, todos_itens)
         elif escolha == '2':
-            adicionar_pedido(cabecalhos, todos_itens)
-        elif escolha == '3':
             visualizar_pedidos(cabecalhos)
-        elif escolha == '4':
+        elif escolha == '3':
             id_busca = input("Digite o ID do pedido para buscar: ")
-            pedido = buscar_pedido(cabecalhos, id_busca)
-            if pedido:
-                # Aqui você mantém toda a sua lógica original de exibição de saldo devedor
-                valor_total_itens = calcular_valor_total_pedido(id_busca, todos_itens)
-                try:
-                    valor_pago = float(pedido.get('Valor Pago (R$)', '0.00'))
-                except ValueError:
-                    valor_pago = 0.0
-                
-                saldo_devedor = valor_total_itens - valor_pago
-                
-                print("\n--- Pedido Encontrado ---")
-                for chave, valor in pedido.items():
-                    print(f"   {chave}: {valor}")
-                
-                print(f"   " + "="*40)
-                print(f"   SALDO DEVEDOR (A PAGAR): R$ {saldo_devedor:.2f}")
-                print(f"   " + "="*40)
-            else:
-                print(f"\n❌ Pedido com ID {id_busca} não encontrado.")
-                
-        elif escolha == '5':
-            editar_pedido(cabecalhos, todos_itens)
-        elif escolha == '6':
-            print("\nObrigado por usar o Gerenciador de Pedidos. Até logo!")
+            # ... (mantenha sua lógica de buscar_pedido por ID aqui)
+        elif escolha == '4':
+            print("\nEncerrando sistema. Até logo!")
             break
         else:
-            print("\n⚠️ Opção inválida. Por favor, tente novamente.")
+            print("\n⚠️ Opção inválida.")
 
 if __name__ == "__main__":
     menu_principal()

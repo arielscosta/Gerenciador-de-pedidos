@@ -576,7 +576,7 @@ def editar_pedido(cabecalhos, todos_itens):
 # --- Funções de Visualização e Menu Principal ---
 
 def gerenciar_por_cliente(cabecalhos, todos_itens):
-    """Filtra pedidos por nome e centraliza a gestão de pagamentos e edições."""
+    """Filtra pedidos por nome e exibe extrato detalhado de pedidos e pagamentos."""
     nome_busca = input("\nDigite o nome do cliente para gerenciar: ").strip().lower()
     
     # Filtra os pedidos que contêm o nome buscado
@@ -589,40 +589,52 @@ def gerenciar_por_cliente(cabecalhos, todos_itens):
     nome_exato = pedidos_cliente[0]['Nome do Cliente']
     
     while True:
-        # Cálculo de dívida acumulada usando sua lógica de saldo devedor
         total_devedor_acumulado = 0.0
-        print(f"\n" + "═"*50)
-        print(f"    PAINEL DO CLIENTE: {nome_exato.upper()}")
-        print("═"*50)
-        print(f"{'ID':<5} | {'DATA':<12} | {'TOTAL':<10} | {'SALDO':<10} | {'STATUS'}")
+        print(f"\n" + "═"*70)
+        print(f"    EXTRATO DO CLIENTE: {nome_exato.upper()}")
+        print("═"*70)
+        
+        # --- TABELA DE PEDIDOS ---
+        print(f"{'ID':<5} | {'DATA PEDIDO':<18} | {'TOTAL':<10} | {'SALDO':<10} | {'STATUS'}")
+        print("-" * 70)
         
         for p in pedidos_cliente:
             v_total = float(p['Valor Total (R$)'])
             v_pago = float(p.get('Valor Pago (R$)', '0.00'))
             saldo = v_total - v_pago
             total_devedor_acumulado += saldo
-            print(f"{p['ID do Pedido']:<5} | {p['Data do Pedido'][:10]:<12} | {v_total:<10.2f} | {saldo:<10.2f} | {p['Status do Pagamento']}")
+            
+            print(f"{p['ID do Pedido']:<5} | {p['Data do Pedido']:<18} | {v_total:<10.2f} | {saldo:<10.2f} | {p['Status do Pagamento']}")
         
-        print("-" * 50)
-        print(f"💰 DÍVIDA TOTAL DESTE CLIENTE: R$ {total_devedor_acumulado:.2f}")
-        print("-" * 50)
-        print("1. Lançar Novo Pedido para este Cliente")
-        print("2. Escolher um Pedido para Editar (Pagamentos/Itens)")
+        # --- NOVO: HISTÓRICO DE RECEBIMENTOS ---
+        print("\n💰 HISTÓRICO DE LANÇAMENTOS (PAGAMENTOS):")
+        tem_pagamento = False
+        for p in pedidos_cliente:
+            # Verifica se há registro de data e valor pago
+            if p.get('Data do Pagamento') and float(p.get('Valor Pago (R$)', 0)) > 0:
+                print(f"   • {p['Data do Pagamento']} --> Recebido R$ {p['Valor Pago (R$)']} (Pedido #{p['ID do Pedido']})")
+                tem_pagamento = True
+        
+        if not tem_pagamento:
+            print("   (Nenhum pagamento registrado neste histórico)")
+
+        print("-" * 70)
+        print(f"💸 TOTAL A RECEBER DESTE CLIENTE: R$ {total_devedor_acumulado:.2f}")
+        print("-" * 70)
+        
+        print("1. Lançar Novo Pedido")
+        print("2. Editar Pedido (Dar Baixa / Alterar Itens)")
         print("3. Voltar ao Menu Principal")
         
         op = input("\nEscolha uma opção: ")
 
         if op == '1':
-            # Chama sua função original
             adicionar_pedido(cabecalhos, todos_itens)
-            # Atualiza a lista após adicionar
             cabecalhos = carregar_cabecalhos() 
             pedidos_cliente = [p for p in cabecalhos if nome_exato.lower() in p['Nome do Cliente'].lower()]
         
         elif op == '2':
-            # Chama sua função original de edição detalhada
             editar_pedido(cabecalhos, todos_itens)
-            # Recarrega para refletir as mudanças na tabela acima
             cabecalhos = carregar_cabecalhos()
             pedidos_cliente = [p for p in cabecalhos if nome_exato.lower() in p['Nome do Cliente'].lower()]
 

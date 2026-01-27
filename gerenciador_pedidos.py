@@ -581,6 +581,35 @@ def editar_pedido(cabecalhos, todos_itens):
             
 # --- Funções de Visualização e Menu Principal ---
 
+def visualizar_detalhes_cliente(pedidos_cliente, todos_itens):
+    """Permite escolher um pedido da lista do cliente para ver detalhes e itens."""
+    id_escolhido = input("\nDigite o ID do pedido que deseja ver detalhes: ").strip()
+    
+    # Busca o pedido dentro da lista filtrada do cliente
+    pedido = next((p for p in pedidos_cliente if p['ID do Pedido'] == id_escolhido), None)
+    
+    if pedido:
+        print("\n" + "═"*50)
+        print(f"      DETALHES DO PEDIDO #{id_escolhido}")
+        print("═"*50)
+        for chave, valor in pedido.items():
+            print(f"{chave:<22}: {valor}")
+        
+        print("-" * 50)
+        print("ITENS DO PEDIDO:")
+        itens_pedido = [item for item in todos_itens if item['ID do Pedido'] == id_escolhido]
+        
+        if itens_pedido:
+            for item in itens_pedido:
+                print(f"• {item['Produto']} | Qtd: {item['Quantidade']} | Subtotal: R$ {item['Valor Item (R$)']}")
+        else:
+            print("Nenhum item encontrado para este pedido.")
+        print("═"*50)
+        input("\nPressione Enter para voltar ao painel...")
+    else:
+        print("\n❌ ID não encontrado na lista deste cliente.")
+
+
 def gerenciar_por_cliente(cabecalhos, todos_itens):
     """Filtra pedidos por nome ou automatiza cadastro de novo cliente."""
     nome_busca = input("\nDigite o nome do cliente para gerenciar: ").strip()
@@ -640,23 +669,23 @@ def gerenciar_por_cliente(cabecalhos, todos_itens):
         
         print("1. Lançar Novo Pedido")
         print("2. EDITAR PEDIDO (Pagamentos, Itens, Excluir)")
-        print("3. Voltar ao Menu Principal")
+        print("3. VER DETALHES DE UM PEDIDO (Ver Itens)") # <-- NOVA OPÇÃO
+        print("4. Voltar ao Menu Principal")
         
         op = input("\nEscolha uma opção: ")
 
         if op == '1':
-            # Aqui também passamos o nome_exato para ser mais rápido
             adicionar_pedido(cabecalhos, todos_itens, nome_sugerido=nome_exato)
-            # Recarrega dados
             cabecalhos = carregar_cabecalhos()
             pedidos_cliente = [p for p in cabecalhos if nome_exato.lower() in p['Nome do Cliente'].lower()]
-        
         elif op == '2':
             editar_pedido(cabecalhos, todos_itens)
             cabecalhos = carregar_cabecalhos()
             pedidos_cliente = [p for p in cabecalhos if nome_exato.lower() in p['Nome do Cliente'].lower()]
-
         elif op == '3':
+            # CHAMADA DA NOVA FUNÇÃO
+            visualizar_detalhes_cliente(pedidos_cliente, todos_itens) 
+        elif op == '4':
             break
 
 def visualizar_pedidos(cabecalhos):
@@ -685,7 +714,6 @@ def buscar_pedido(cabecalhos, id_pedido):
     return next((c for c in cabecalhos if c['ID do Pedido'] == id_pedido), None)
 
 def menu_principal():
-    """Menu Principal simplificado e focado na gestão por cliente."""
     inicializar_csv()
 
     while True:
@@ -693,12 +721,11 @@ def menu_principal():
         todos_itens = carregar_itens()
 
         print("\n" + "="*40)
-        print("      SISTEMA DE GESTÃO v2.0")
+        print("      SISTEMA DE GESTÃO ADEGA v2.0")
         print("="*40)
-        print("1. GESTÃO DE CLIENTES (Venda/Edição/Pagos)")
+        print("1. GESTÃO DE CLIENTES (Venda/Edição/Detalhes)")
         print("2. Visualizar Todos os Pedidos (Geral)")
-        print("3. Buscar Pedido por ID (Detalhado)")
-        print("4. Sair")
+        print("3. Sair")
         print("-" * 40)
 
         escolha = input("Escolha uma opção: ")
@@ -708,9 +735,6 @@ def menu_principal():
         elif escolha == '2':
             visualizar_pedidos(cabecalhos)
         elif escolha == '3':
-            id_busca = input("Digite o ID do pedido para buscar: ")
-            # ... (mantenha sua lógica de buscar_pedido por ID aqui)
-        elif escolha == '4':
             print("\nEncerrando sistema. Até logo!")
             break
         else:

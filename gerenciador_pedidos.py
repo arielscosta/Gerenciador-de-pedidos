@@ -575,6 +575,60 @@ def editar_pedido(cabecalhos, todos_itens):
             
 # --- Funções de Visualização e Menu Principal ---
 
+def gerenciar_por_cliente(cabecalhos, todos_itens):
+    """Filtra pedidos por nome e centraliza a gestão de pagamentos e edições."""
+    nome_busca = input("\nDigite o nome do cliente para gerenciar: ").strip().lower()
+    
+    # Filtra os pedidos que contêm o nome buscado
+    pedidos_cliente = [p for p in cabecalhos if nome_busca in p['Nome do Cliente'].lower()]
+    
+    if not pedidos_cliente:
+        print(f"\n❌ Nenhum registro encontrado para '{nome_busca}'.")
+        return
+
+    nome_exato = pedidos_cliente[0]['Nome do Cliente']
+    
+    while True:
+        # Cálculo de dívida acumulada usando sua lógica de saldo devedor
+        total_devedor_acumulado = 0.0
+        print(f"\n" + "═"*50)
+        print(f"    PAINEL DO CLIENTE: {nome_exato.upper()}")
+        print("═"*50)
+        print(f"{'ID':<5} | {'DATA':<12} | {'TOTAL':<10} | {'SALDO':<10} | {'STATUS'}")
+        
+        for p in pedidos_cliente:
+            v_total = float(p['Valor Total (R$)'])
+            v_pago = float(p.get('Valor Pago (R$)', '0.00'))
+            saldo = v_total - v_pago
+            total_devedor_acumulado += saldo
+            print(f"{p['ID do Pedido']:<5} | {p['Data do Pedido'][:10]:<12} | {v_total:<10.2f} | {saldo:<10.2f} | {p['Status do Pagamento']}")
+        
+        print("-" * 50)
+        print(f"💰 DÍVIDA TOTAL DESTE CLIENTE: R$ {total_devedor_acumulado:.2f}")
+        print("-" * 50)
+        print("1. Lançar Novo Pedido para este Cliente")
+        print("2. Escolher um Pedido para Editar (Pagamentos/Itens)")
+        print("3. Voltar ao Menu Principal")
+        
+        op = input("\nEscolha uma opção: ")
+
+        if op == '1':
+            # Chama sua função original
+            adicionar_pedido(cabecalhos, todos_itens)
+            # Atualiza a lista após adicionar
+            cabecalhos = carregar_cabecalhos() 
+            pedidos_cliente = [p for p in cabecalhos if nome_exato.lower() in p['Nome do Cliente'].lower()]
+        
+        elif op == '2':
+            # Chama sua função original de edição detalhada
+            editar_pedido(cabecalhos, todos_itens)
+            # Recarrega para refletir as mudanças na tabela acima
+            cabecalhos = carregar_cabecalhos()
+            pedidos_cliente = [p for p in cabecalhos if nome_exato.lower() in p['Nome do Cliente'].lower()]
+
+        elif op == '3':
+            break
+
 def visualizar_pedidos(cabecalhos):
     """Imprime todos os cabeçalhos de pedidos em formato de tabela."""
     if not cabecalhos:
@@ -611,56 +665,50 @@ def menu_principal():
         print("\n" + "="*30)
         print("    Gerenciador de Pedidos")
         print("="*30)
-        print("1. Adicionar Novo Pedido")
-        print("2. Visualizar Todos os Pedidos")
-        print("3. Buscar Pedido por ID")
-        print("4. Editar Pedido Existente")
-        print("5. Sair")
+        # 1. Inserimos a nova opção de gestão por cliente
+        print("1. MENU DO CLIENTE (Busca por Nome/Dívida)")
+        print("2. Adicionar Novo Pedido")
+        print("3. Visualizar Todos os Pedidos")
+        print("4. Buscar Pedido por ID")
+        print("5. Editar Pedido Existente")
+        print("6. Sair")
         print("-" * 30)
 
         escolha = input("Escolha uma opção: ")
 
+        # 2. Atualizamos a lógica para corresponder aos novos números
         if escolha == '1':
-            adicionar_pedido(cabecalhos, todos_itens)
+            gerenciar_por_cliente(cabecalhos, todos_itens)
         elif escolha == '2':
-            visualizar_pedidos(cabecalhos)
+            adicionar_pedido(cabecalhos, todos_itens)
         elif escolha == '3':
+            visualizar_pedidos(cabecalhos)
+        elif escolha == '4':
             id_busca = input("Digite o ID do pedido para buscar: ")
             pedido = buscar_pedido(cabecalhos, id_busca)
             if pedido:
-                # 1. Recalcula o Valor Total dos Itens
+                # Aqui você mantém toda a sua lógica original de exibição de saldo devedor
                 valor_total_itens = calcular_valor_total_pedido(id_busca, todos_itens)
-                
-                # 2. Obtém o Valor Pago do cabeçalho (garante que seja float, padrão 0)
                 try:
                     valor_pago = float(pedido.get('Valor Pago (R$)', '0.00'))
                 except ValueError:
                     valor_pago = 0.0
                 
-                # 3. Calcula o Saldo Devedor
                 saldo_devedor = valor_total_itens - valor_pago
                 
                 print("\n--- Pedido Encontrado ---")
                 for chave, valor in pedido.items():
                     print(f"   {chave}: {valor}")
                 
-                # --- EXIBINDO O SALDO DEVEDOR ---
                 print(f"   " + "="*40)
-                print(f"   VALOR TOTAL DO PEDIDO: R$ {valor_total_itens:.2f}")
-                print(f"   VALOR PAGO REGISTRADO: R$ {valor_pago:.2f}")
                 print(f"   SALDO DEVEDOR (A PAGAR): R$ {saldo_devedor:.2f}")
                 print(f"   " + "="*40)
-                
-                itens_pedido = [item for item in todos_itens if item['ID do Pedido'] == id_busca]
-                if itens_pedido:
-                    print("\n   --- ITENS ---")
-                    for item in itens_pedido:
-                        print(f"   {item['Produto']} | Qtd: {item['Quantidade']} | Total: R$ {item['Valor Item (R$)']}")
             else:
                 print(f"\n❌ Pedido com ID {id_busca} não encontrado.")
-        elif escolha == '4':
-            editar_pedido(cabecalhos, todos_itens)
+                
         elif escolha == '5':
+            editar_pedido(cabecalhos, todos_itens)
+        elif escolha == '6':
             print("\nObrigado por usar o Gerenciador de Pedidos. Até logo!")
             break
         else:
